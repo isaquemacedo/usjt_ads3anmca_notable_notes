@@ -1,8 +1,9 @@
 import { Note } from "../models/note.model";
-import { HttpClient } from '@angular/common/http';
-import {Observable} from 'rxjs/Observable';
+// import {Observable} from 'rxjs/Observable';
 import { Injectable } from "@angular/core";
 import { BehaviorSubject } from 'rxjs/BehaviorSubject'
+import { AngularFireDatabase } from "angularfire2/database";
+import { LoadingController } from "ionic-angular";
 
 @Injectable()
 export class NoteService {
@@ -10,20 +11,40 @@ export class NoteService {
     notesSource = new BehaviorSubject<Array<Note>>(this.notes)
     notesCurrent = this.notesSource.asObservable()
 
-    constructor(private http: HttpClient) {
-        this.mockNotes()
+    constructor(
+        private db: AngularFireDatabase, 
+        public loading: LoadingController) {
+    
     }
 
-    mockNotes() {
-        this.http.get<Array<Note>>('http://www.mocky.io/v2/5cd726593000002d4a606241').subscribe(
-            resp => {
-                this.notes = resp
-                this.notesSource.next(this.notes)
+    fetchNotes() {
+        this.db.list("/notes/").subscribe(
+            (resp) => {
+                resp.forEach(note => {
+                    this.notes.push(note)
+                    this.notesSource.next(this.notes)
+                })
             }
-        )
+        );
+    }
+       
+    editNote(note) {
+        this.db.object("/notes/"+note.$key).update({
+            title: note.title,
+            content: note.content,
+            date: note.date
+        });
     }
 
     removeNote(note) {
+        this.db.object("/notes/"+note.$key).remove()
+        .then(x => console.log ("Note deleted successfully"))
+            .catch( error => {
+                console.log ("Could not delete note");
+                alert ("Could not delete note")
+            }
+        );
+
         let index = this.notes.indexOf(note);
         if (index > -1) {
             this.notes.splice(index, 1);
@@ -31,8 +52,12 @@ export class NoteService {
     }
 
     addNote(note: Note) {
-        this.notes.push(note);
-        this.notesSource.next(this.notes)
+        this.db.list("/notes/").push({
+            title: note.title,
+            content: note.content,
+            date: note.date
+        });
+           
     }
 
 
